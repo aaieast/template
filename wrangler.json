@@ -1,5 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": "index.js",
 	"migrations": [
 		{
 			"new_sqlite_classes": ["MyDurableObject"],
