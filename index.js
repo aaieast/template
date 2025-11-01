@@ -1,23 +1,62 @@
 import { DurableObject } from "cloudflare:workers";
-export class MyDurableObject extends DurableObject {
-  constructor(ctx, env) {
-    // Required, as we are extending the base class.
-    super(ctx, env);
-  }
 
-  async sayHello() {
-    let result = this.ctx.storage.sql
-      .exec("SELECT 'Hello, World!' as greeting")
-      .one();
-    return result.greeting;
-  }
-}
+// Worker
 export default {
-  async fetch(request, env, ctx) {
-    const stub = env.MY_DURABLE_OBJECT.getByName(new URL(request.url).pathname);
+  async fetch(request, env) {
+    let url = new URL(request.url);
+    let name = url.searchParams.get("name");
+    if (!name) {
+      return new Response(
+        "Select a Durable Object to contact by using" +
+          " the `name` URL query string parameter, for example, ?name=A",
+      );
+    }
 
-    const greeting = await stub.sayHello();
+    // A stub is a client Object used to send messages to the Durable Object.
+    let stub = env.COUNTERS.getByName(name);
 
-    return new Response(greeting);
+    // Send a request to the Durable Object using RPC methods, then await its response.
+    let count = null;
+    switch (url.pathname) {
+      case "/increment":
+        count = await stub.increment();
+        break;
+      case "/decrement":
+        count = await stub.decrement();
+        break;
+      case "/":
+        // Serves the current value.
+        count = await stub.getCounterValue();
+        break;
+      default:
+        return new Response("Not found", { status: 404 });
+    }
+
+    return new Response(`Durable Object '${name}' count: ${count}`);
   },
 };
+
+// Durable Object
+export class Counter extends DurableObject {
+  async getCounterValue() {
+    let value = (await this.ctx.storage.get("value")) || 0;
+    return value;
+  }
+
+  async increment(amount = 1) {
+    let value = (await this.ctx.storage.get("value")) || 0;
+    value += amount;
+    // You do not have to worry about a concurrent request having modified the value in storage.
+    // "input gates" will automatically protect against unwanted concurrency.
+    // Read-modify-write is safe.
+    await this.ctx.storage.put("value", value);
+    return value;
+  }
+
+  async decrement(amount = 1) {
+    let value = (await this.ctx.storage.get("value")) || 0;
+    value -= amount;
+    await this.ctx.storage.put("value", value);
+    return value;
+  }
+}
