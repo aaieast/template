@@ -7,7 +7,7 @@ export default {
     let name = url.searchParams.get("name");
     if (!name) {
       return new Response(
-        "Select a Durable Object to contact by using" +
+        "Select a Durable to contact by using" +
           " the `name` URL query string parameter, for example, ?name=A",
       );
     }
